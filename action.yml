@@ -1,0 +1,49 @@
+name: "Create Repository with Lambda Template"
+description: "Creates a GitHub repository from a template with Lambda code and deployment workflows"
+inputs:
+  repo-name:
+    description: "The name of the new repository"
+    required: true
+  template-url:
+    description: "URL of the template repository"
+    required: true
+  org:
+    description: "Organization or username for the repository"
+    required: true
+  github-token:
+    description: "GitHub Token for authentication"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Extract Owner and Repo from Template URL
+      id: extract
+      shell: bash
+      run: |
+        template_url="${{ inputs.template-url }}"
+        # Extract the owner and repo from the template URL
+        owner_repo=$(echo "$template_url" | sed -E 's|https://github.com/([^/]+)/([^/]+)|\1 \2|')
+        echo "owner=$(echo $owner_repo | cut -d' ' -f1)" >> $GITHUB_ENV
+        echo "repo=$(echo $owner_repo | cut -d' ' -f2)" >> $GITHUB_ENV
+        echo "Template Owner: $(echo $owner_repo | cut -d' ' -f1)"
+        echo "Template Repo: $(echo $owner_repo | cut -d' ' -f2)"
+
+    - name: Create Repository from Template
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        curl -X POST \
+          -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/$owner/$repo/generate \
+          -d '{
+            "name": "'"${{ inputs.repo-name }}"'",
+            "owner": "'"${{ inputs.org }}"'",
+            "private": false
+          }'
+
+    - name: Output Repository URL
+      shell: bash
+      run: |
+        echo "Repository created: https://github.com/${{ inputs.org }}/${{ inputs.repo-name }}"
